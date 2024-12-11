@@ -20,6 +20,7 @@
 "LR_LINEAR_DECAY": False
 "GAMMA": 0.99
 "REW_SCALE": 10. # scale the reward to the original scale of SMAC
+"MULTI_OUTPUT": False
 
 # ENV
 "ENV_NAME": "HeuristicEnemySMAX"
