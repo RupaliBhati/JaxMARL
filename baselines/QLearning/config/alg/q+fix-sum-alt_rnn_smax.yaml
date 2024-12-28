@@ -1,0 +1,15 @@
+defaults:
+  - ql_rnn_smax
+
+QFIX:
+  # FIXER: "qfix"
+  # FIXER: "q+fix"
+  # FIXER: "qfix-sum-alt"
+  FIXER: "q+fix-sum-alt"
+
+  # FIXEE: vdn
+  # FIXEE: qmix
+
+  W_DELTA: 0.0
+  W_GT: -1.0
+  DETACH_ADVANTAGES: True
