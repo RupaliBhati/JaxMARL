@@ -1,7 +1,7 @@
 defaults:
-  - ql_rnn_smax
+  - vdn_ff_mpe
 
-ALG_NAME: qfix-mono_rnn
+ALG_NAME: qfix-mono_ff
 
 QFIX:
   FIXER: qfix

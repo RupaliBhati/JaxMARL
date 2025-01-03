@@ -1,7 +1,7 @@
 defaults:
-  - ql_rnn_smax
+  - vdn_ff_mpe
 
-ALG_NAME: q+fix-sum_rnn
+ALG_NAME: q+fix-sum_ff
 
 QFIX:
   # FIXER: qfix

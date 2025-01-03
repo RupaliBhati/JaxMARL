@@ -1,8 +1,13 @@
+from typing import cast
+
 import flax.linen as nn
-from .vdn import VDN
+
+from .adapters import FFAdapter
+from .protocol import QFixProtocol
+from .qfix import AdditiveQFix, QFix
+from .qfix_sum_alt import AdditiveQFixSumAlt, QFixSumAlt
 from .qmix import QMIX
-from .qfix import QFix, AdditiveQFix
-from .qfix_sum_alt import QFixSumAlt, AdditiveQFixSumAlt
+from .vdn import VDN
 
 
 def make_fixee(config) -> nn.Module:
@@ -21,7 +26,11 @@ def make_fixee(config) -> nn.Module:
     raise ValueError(f"Invalid {fixee=}")
 
 
-def make_fixer(config, num_agents: int) -> nn.Module:
+def make_fixer(config, num_agents: int, *, wrap_ff_adapter=False) -> nn.Module:
+    if wrap_ff_adapter:
+        fixer = cast(QFixProtocol, make_fixer(config, num_agents))
+        return FFAdapter(fixer)
+
     config_qfix = config["QFIX"]
 
     fixer = config_qfix["FIXER"]

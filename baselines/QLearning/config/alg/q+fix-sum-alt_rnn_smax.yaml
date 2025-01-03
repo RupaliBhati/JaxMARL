@@ -1,11 +1,13 @@
 defaults:
   - ql_rnn_smax
 
+ALG_NAME: q+fix-sum-alt_rnn
+
 QFIX:
-  # FIXER: "qfix"
-  # FIXER: "q+fix"
-  # FIXER: "qfix-sum-alt"
-  FIXER: "q+fix-sum-alt"
+  # FIXER: qfix
+  # FIXER: q+fix
+  # FIXER: qfix-sum-alt
+  FIXER: q+fix-sum-alt
 
   # FIXEE: vdn
   # FIXEE: qmix

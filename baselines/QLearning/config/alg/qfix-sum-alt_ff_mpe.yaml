@@ -1,16 +1,16 @@
 defaults:
-  - ql_rnn_smax
+  - vdn_ff_mpe
 
-ALG_NAME: qfix-mono_rnn
+ALG_NAME: qfix-sum-alt_ff
 
 QFIX:
-  FIXER: qfix
+  # FIXER: qfix
   # FIXER: q+fix
-  # FIXER: qfix-sum-alt
+  FIXER: qfix-sum-alt
   # FIXER: q+fix-sum-alt
 
   # FIXEE: vdn
-  FIXEE: qmix
+  # FIXEE: qmix
 
   W_DELTA: 0.0
   W_GT: 0.0

@@ -1,7 +1,8 @@
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
-from .weights import W_Module, B_Module
+
+from .weights import B_Module, W_Module
 
 
 class QFixSumAlt(nn.Module):
@@ -30,7 +31,25 @@ class QFixSumAlt(nn.Module):
         individual_vvalues: jax.Array,
         states: jax.Array,
         joint_action_n_hot: jax.Array,
-    ):
+    ) -> jax.Array:
+        # individual_qvalues.shape == (N, T, B)
+        # individual_vvalues.shape == (N, T, B)
+        # states.shape == (T, B, DS)
+        # joint_action_n_hot.shape == (T, B, N*A), N-hot encoding
+        return self.qvalues(
+            individual_qvalues,
+            individual_vvalues,
+            states,
+            joint_action_n_hot,
+        )
+
+    def qvalues(
+        self,
+        individual_qvalues: jax.Array,
+        individual_vvalues: jax.Array,
+        states: jax.Array,
+        joint_action_n_hot: jax.Array,
+    ) -> jax.Array:
         # individual_qvalues.shape == (N, T, B)
         # individual_vvalues.shape == (N, T, B)
         # states.shape == (T, B, DS)
@@ -48,6 +67,22 @@ class QFixSumAlt(nn.Module):
         # joint_qvalues.shape == (T, B)
 
         return joint_qvalues
+
+    def vvalues(
+        self,
+        individual_vvalues: jax.Array,
+        states: jax.Array,
+    ) -> jax.Array:
+        # individual_vvalues.shape == (N, T, B)
+        # states.shape == (T, B, DS)
+
+        b = self.b_module(states).squeeze(-1)
+        # b.shape == (T, B)
+
+        joint_vvalues = b
+        # joint_vvalues.shape == (T, B)
+
+        return joint_vvalues
 
 
 class AdditiveQFixSumAlt(nn.Module):
@@ -77,7 +112,25 @@ class AdditiveQFixSumAlt(nn.Module):
         individual_vvalues: jax.Array,
         states: jax.Array,
         joint_action_n_hot: jax.Array,
-    ):
+    ) -> jax.Array:
+        # individual_qvalues.shape == (N, T, B)
+        # individual_vvalues.shape == (N, T, B)
+        # states.shape == (T, B, DS)
+        # joint_action_n_hot.shape == (T, B, N*A), N-hot encoding
+        return self.qvalues(
+            individual_qvalues,
+            individual_vvalues,
+            states,
+            joint_action_n_hot,
+        )
+
+    def qvalues(
+        self,
+        individual_qvalues: jax.Array,
+        individual_vvalues: jax.Array,
+        states: jax.Array,
+        joint_action_n_hot: jax.Array,
+    ) -> jax.Array:
         # individual_qvalues.shape == (N, T, B)
         # individual_vvalues.shape == (N, T, B)
         # states.shape == (T, B, DS)
@@ -102,3 +155,22 @@ class AdditiveQFixSumAlt(nn.Module):
         # joint_qvalues.shape == (T, B)
 
         return joint_qvalues
+
+    def vvalues(
+        self,
+        individual_vvalues: jax.Array,
+        states: jax.Array,
+    ) -> jax.Array:
+        # individual_vvalues.shape == (N, T, B)
+        # states.shape == (T, B, DS)
+
+        fixee_vvalues = individual_vvalues.sum(axis=0)
+        # fixee_vvalues.shape == (T, B)
+
+        b = self.b_module(states).squeeze(-1)
+        # b.shape == (T, B)
+
+        joint_vvalues = fixee_vvalues + b
+        # joint_qvalues.shape == (T, B)
+
+        return joint_vvalues
