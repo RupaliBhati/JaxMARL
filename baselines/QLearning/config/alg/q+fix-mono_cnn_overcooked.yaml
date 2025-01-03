@@ -1,0 +1,17 @@
+defaults:
+  - ql_cnn_overcooked
+
+ALG_NAME: q+fix-mono_cnn
+
+QFIX:
+  # FIXER: qfix
+  FIXER: q+fix
+  # FIXER: qfix-sum-alt
+  # FIXER: q+fix-sum-alt
+
+  FIXEE: vdn
+  # FIXEE: qmix
+
+  W_DELTA: 0.0
+  W_GT: -1.0
+  DETACH_ADVANTAGES: True

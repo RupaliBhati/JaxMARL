@@ -1,3 +1,7 @@
+"""
+Specific to this implementation: CNN network and Reward Shaping Annealing as per Overcooked paper.
+"""
+
 import copy
 import os
 from typing import Any
@@ -25,16 +29,51 @@ from jaxmarl.wrappers.baselines import (
 )
 
 
+class CNN(nn.Module):
+    activation: str = "relu"
+
+    @nn.compact
+    def __call__(self, x):
+        # x.shape == (B, H, W, C)
+        if self.activation == "relu":
+            activation = nn.relu
+        else:
+            activation = nn.tanh
+        x = nn.Conv(
+            features=32,
+            kernel_size=(5, 5),
+        )(x)
+        x = activation(x)
+        x = nn.Conv(
+            features=32,
+            kernel_size=(3, 3),
+        )(x)
+        x = activation(x)
+        x = nn.Conv(
+            features=32,
+            kernel_size=(3, 3),
+        )(x)
+        x = activation(x)
+        x = x.reshape((x.shape[0], -1))  # Flatten
+
+        x = nn.Dense(features=64)(x)
+        x = activation(x)
+
+        return x
+
+
 class QNetwork(nn.Module):
     action_dim: int
-    hidden_size: int = 512
-    num_layers: int = 4
+    hidden_size: int = 64
 
     @nn.compact
     def __call__(self, x: jnp.ndarray):
-        for _ in range(1, self.num_layers - 1):
-            x = nn.Dense(self.hidden_size)(x)
-            x = nn.relu(x)
+        # TODO: the data is categorical, but embeddings are not used here
+        # TODO observation shape: (h, w, d=26)
+        embedding = CNN()(x)
+        x = nn.Dense(self.hidden_size)(embedding)
+        # TODO: added nonlinearity between layers
+        x = nn.relu(x)
         x = nn.Dense(self.action_dim)(x)
         return x
 
@@ -64,6 +103,10 @@ def make_train(config, env):
         config["EPS_START"],
         config["EPS_FINISH"],
         config["EPS_DECAY"] * config["NUM_UPDATES"],
+    )
+
+    rew_shaping_anneal = optax.linear_schedule(
+        init_value=1.0, end_value=0.0, transition_steps=config["REW_SHAPING_HORIZON"]
     )
 
     def get_greedy_actions(q_vals, valid_actions):
@@ -109,9 +152,11 @@ def make_train(config, env):
 
         # INIT ENV
         rng, _rng = jax.random.split(rng)
-        wrapped_env = CTRolloutManager(env, batch_size=config["NUM_ENVS"])
+        wrapped_env = CTRolloutManager(
+            env, batch_size=config["NUM_ENVS"], preprocess_obs=False
+        )
         test_env = CTRolloutManager(
-            env, batch_size=config["TEST_NUM_ENVS"]
+            env, batch_size=config["TEST_NUM_ENVS"], preprocess_obs=False
         )  # batched env for testing (has different batch size)
 
         # to initalize some variables is necessary to sample a trajectory to know its strucutre
@@ -150,15 +195,15 @@ def make_train(config, env):
         network = QNetwork(
             action_dim=wrapped_env.max_action_space,
             hidden_size=config["HIDDEN_SIZE"],
-            num_layers=config["NUM_LAYERS"],
         )
 
         mixer = make_fixer(config, env.num_agents, wrap_ff_adapter=True)
 
         def create_agent(rng):
-            init_x = jnp.zeros((1, wrapped_env.obs_size))
+            init_x = jnp.zeros((1, *env.observation_space().shape))
             agent_params = network.init(rng, init_x)
 
+            # TODO finish setting this up
             # init mixer
             rng, _rng = jax.random.split(rng)
             state_size = sample_traj.obs["__all__"].shape[-1]
@@ -253,20 +298,29 @@ def make_train(config, env):
                 new_action = jax.vmap(eps_greedy_exploration, in_axes=(0, 0, None, 0))(
                     _rngs, q_vals, eps, batchify(avail_actions)
                 )
-                new_action = unbatchify(new_action)
+                actions = unbatchify(new_action)
 
-                new_obs, new_env_state, reward, new_done, info = wrapped_env.batch_step(
-                    rng_s, env_state, new_action
+                new_obs, new_env_state, rewards, dones, infos = wrapped_env.batch_step(
+                    rng_s, env_state, actions
+                )
+
+                # add shaped reward
+                shaped_reward = infos.pop("shaped_reward")
+                shaped_reward["__all__"] = batchify(shaped_reward).sum(axis=0)
+                rewards = jax.tree.map(
+                    lambda x, y: x + y * rew_shaping_anneal(train_state.timesteps),
+                    rewards,
+                    shaped_reward,
                 )
 
                 timestep = Timestep(
                     obs=last_obs,
-                    actions=new_action,
+                    actions=actions,
                     avail_actions=avail_actions,
-                    rewards=reward,
-                    dones=new_done,
+                    rewards=rewards,
+                    dones=dones,
                 )
-                return (new_obs, new_env_state, rng), (timestep, info)
+                return (new_obs, new_env_state, rng), (timestep, infos)
 
             # step the env
             rng, _rng = jax.random.split(rng)
@@ -342,9 +396,9 @@ def make_train(config, env):
                 def _loss_fn(params):
                     individual_qvalues = jax.vmap(network.apply, in_axes=(None, 0))(
                         params["agent"],
-                        observations,
+                        batchify(minibatch.first.obs),
                     )
-                    # individual_qvalues.shape == (N, B, A)
+                    # individual_qvlues.shape == (N, B, A)
                     assert isinstance(individual_qvalues, jax.Array)
 
                     chosen_qvalues = jnp.take_along_axis(
@@ -376,7 +430,7 @@ def make_train(config, env):
                     # qfix_qvalues.shape == (B,)
 
                     loss = jnp.mean((qfix_qvalues - target_qvalues) ** 2)
-                    # jax.debug.print("loss = {}", loss)  # XXX PRINT
+                    jax.debug.print("loss = {}", loss)  # XXX PRINT
 
                     return loss, chosen_qvalues.mean()
 
@@ -459,7 +513,7 @@ def make_train(config, env):
                                 for k, v in metrics.items()
                             }
                         )
-                    wandb.log(metrics, step=metrics["update_step"])
+                    wandb.log(metrics, step=metrics["update_steps"])
 
                 jax.debug.callback(callback, metrics, original_seed)
 
@@ -467,57 +521,52 @@ def make_train(config, env):
 
             return runner_state, None
 
-        rng, _rng = jax.random.split(rng)
-        obs, env_state = wrapped_env.batch_reset(_rng)
-        expl_state = (obs, env_state)
-
         def get_greedy_metrics(rng, train_state):
-            """Help function to test greedy policy during training"""
             if not config.get("TEST_DURING_TRAINING", True):
                 return None
+            """Help function to test greedy policy during training"""
 
             def _greedy_env_step(step_state, unused):
-                env_state, last_obs, rng = step_state
-                rng, key_s = jax.random.split(rng)
-                _obs = batchify(last_obs)
+                last_obs, env_state, rng = step_state
+                rng, rng_a, rng_s = jax.random.split(rng, 3)
                 q_vals = jax.vmap(network.apply, in_axes=(None, 0))(
                     train_state.params["agent"],
-                    _obs,
-                )
-                valid_actions = test_env.get_valid_actions(env_state.env_state)
-                actions = get_greedy_actions(q_vals, batchify(valid_actions))
+                    batchify(last_obs),  # (num_agents, num_envs, num_actions)
+                )  # (num_agents, num_envs, num_actions)
+                actions = jnp.argmax(q_vals, axis=-1)
                 actions = unbatchify(actions)
-                obs, env_state, rewards, dones, infos = test_env.batch_step(
-                    key_s, env_state, actions
+                new_obs, new_env_state, rewards, dones, infos = test_env.batch_step(
+                    rng_s, env_state, actions
                 )
-                step_state = (env_state, obs, rng)
+                step_state = (new_obs, new_env_state, rng)
                 return step_state, (rewards, dones, infos)
 
             rng, _rng = jax.random.split(rng)
             init_obs, env_state = test_env.batch_reset(_rng)
             rng, _rng = jax.random.split(rng)
-            step_state = (
-                env_state,
-                init_obs,
-                _rng,
-            )
             step_state, (rewards, dones, infos) = jax.lax.scan(
-                _greedy_env_step, step_state, None, config["TEST_NUM_STEPS"]
+                _greedy_env_step,
+                (init_obs, env_state, _rng),
+                None,
+                config["TEST_NUM_STEPS"],
             )
-            metrics = jax.tree.map(
-                lambda x: jnp.nanmean(
+            metrics = {
+                "returned_episode_returns": jnp.nanmean(
                     jnp.where(
                         infos["returned_episode"],
-                        x,
+                        infos["returned_episode_returns"],
                         jnp.nan,
                     )
-                ),
-                infos,
-            )
+                )
+            }
             return metrics
 
         rng, _rng = jax.random.split(rng)
         test_state = get_greedy_metrics(_rng, train_state)
+
+        rng, _rng = jax.random.split(rng)
+        obs, env_state = wrapped_env.batch_reset(_rng)
+        expl_state = (obs, env_state)
 
         # train
         rng, _rng = jax.random.split(rng)
@@ -614,7 +663,7 @@ def tune(default_config):
         **default_config["alg"],
     }  # merge the alg config with the main config
     env_name = default_config["ENV_NAME"]
-    alg_name = default_config["ALG_NAME"]
+    alg_name = config["ALG_NAME"]
     env, env_name = env_from_config(default_config)
 
     def wrapped_make_train():
