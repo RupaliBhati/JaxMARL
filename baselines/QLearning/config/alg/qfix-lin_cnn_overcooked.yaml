@@ -1,13 +1,13 @@
 defaults:
-  - vdn_ff_mpe
+  - ql_cnn_overcooked
 
-ALG_NAME: qfix-sum-alt_ff
+ALG_NAME: qfix-lin_cnn
 
 QFIX:
   # FIXER: qfix
   # FIXER: q+fix
-  FIXER: qfix-sum-alt
-  # FIXER: q+fix-sum-alt
+  FIXER: qfix-lin
+  # FIXER: q+fix-lin
 
   # FIXEE: vdn
   # FIXEE: qmix

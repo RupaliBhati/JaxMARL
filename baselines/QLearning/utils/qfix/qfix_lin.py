@@ -5,9 +5,9 @@ import jax.numpy as jnp
 from .weights import B_Module, W_Module
 
 
-class QFixSumAlt(nn.Module):
+class QFixLin(nn.Module):
     """
-    QFIX-sum-alt fixing network for projecting IGM-incomplete fixees into IGM-complete values.
+    QFIX-lin fixing network for projecting IGM-incomplete fixees into IGM-complete values.
     """
 
     hidden_size: int
@@ -85,9 +85,9 @@ class QFixSumAlt(nn.Module):
         return joint_vvalues
 
 
-class AdditiveQFixSumAlt(nn.Module):
+class AdditiveQFixLin(nn.Module):
     """
-    Q+FIX-sum-alt fixing network for projecting IGM-incomplete fixees into IGM-complete values.
+    Q+FIX-lin fixing network for projecting IGM-incomplete fixees into IGM-complete values.
     """
 
     hidden_size: int

@@ -6,8 +6,8 @@ ALG_NAME: qfix-sum_rnn
 QFIX:
   FIXER: qfix
   # FIXER: q+fix
-  # FIXER: qfix-sum-alt
-  # FIXER: q+fix-sum-alt
+  # FIXER: qfix-lin
+  # FIXER: q+fix-lin
 
   FIXEE: vdn
   # FIXEE: qmix

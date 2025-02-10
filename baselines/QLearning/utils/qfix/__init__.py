@@ -5,7 +5,7 @@ import flax.linen as nn
 from .adapters import FFAdapter
 from .protocol import QFixProtocol
 from .qfix import AdditiveQFix, QFix
-from .qfix_sum_alt import AdditiveQFixSumAlt, QFixSumAlt
+from .qfix_lin import AdditiveQFixLin, QFixLin
 from .qmix import QMIX
 from .vdn import VDN
 
@@ -40,16 +40,16 @@ def make_fixer(config, num_agents: int, *, wrap_ff_adapter=False) -> nn.Module:
     w_gt = config_qfix.get("W_GT", -1.0 if is_additive else 0.0)
     detach_advantages = config_qfix.get("DETACH_ADVANTAGES", True)
 
-    if fixer == "qfix-sum-alt":
-        return QFixSumAlt(
+    if fixer == "qfix-lin":
+        return QFixLin(
             hidden_size=config["HIDDEN_SIZE"],
             num_agents=num_agents,
             w_delta=w_delta,
             w_gt=w_gt,
         )
 
-    if fixer == "q+fix-sum-alt":
-        return AdditiveQFixSumAlt(
+    if fixer == "q+fix-lin":
+        return AdditiveQFixLin(
             hidden_size=config["HIDDEN_SIZE"],
             num_agents=num_agents,
             w_delta=w_delta,
