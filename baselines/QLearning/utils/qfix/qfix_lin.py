@@ -16,14 +16,17 @@ class QFixLin(nn.Module):
     w_delta: float
     w_gt: float
 
+    debug_recover_fixee: bool
+
     def setup(self):
-        self.w_module = W_Module(
-            self.hidden_size,
-            self.num_agents,
-            self.w_delta,
-            self.w_gt,
-        )
-        self.b_module = B_Module(self.hidden_size)
+        if not self.debug_recover_fixee:
+            self.w_module = W_Module(
+                self.hidden_size,
+                self.num_agents,
+                self.w_delta,
+                self.w_gt,
+            )
+            self.b_module = B_Module(self.hidden_size)
 
     def __call__(
         self,
@@ -58,10 +61,17 @@ class QFixLin(nn.Module):
         individual_advantages = individual_qvalues - individual_vvalues
         # fixee_advantages.shape == (N, T, B)
 
-        w = self.w_module(states, joint_action_n_hot)
-        # w.shape == (T, B, N)
-        b = self.b_module(states).squeeze(-1)
-        # b.shape == (T, B)
+        if self.debug_recover_fixee:
+            N, T, B = individual_advantages.shape
+            w = jnp.ones((T, B, N))
+            # w.shape == (T, B, N)
+            b = individual_vvalues.sum(axis=0)
+            # b.shape == (T, B)
+        else:
+            w = self.w_module(states, joint_action_n_hot)
+            # w.shape == (T, B, N)
+            b = self.b_module(states).squeeze(-1)
+            # b.shape == (T, B)
 
         joint_qvalues = jnp.einsum("TBN,NTB->TB", w, individual_advantages) + b
         # joint_qvalues.shape == (T, B)
@@ -97,14 +107,17 @@ class AdditiveQFixLin(nn.Module):
     w_gt: float
     detach_advantages: bool
 
+    debug_recover_fixee: bool
+
     def setup(self):
-        self.w_module = W_Module(
-            self.hidden_size,
-            self.num_agents,
-            self.w_delta,
-            self.w_gt,
-        )
-        self.b_module = B_Module(self.hidden_size)
+        if not self.debug_recover_fixee:
+            self.w_module = W_Module(
+                self.hidden_size,
+                self.num_agents,
+                self.w_delta,
+                self.w_gt,
+            )
+            self.b_module = B_Module(self.hidden_size)
 
     def __call__(
         self,
@@ -144,10 +157,14 @@ class AdditiveQFixLin(nn.Module):
         if self.detach_advantages:
             individual_advantages = jax.lax.stop_gradient(individual_advantages)
 
-        w = self.w_module(states, joint_action_n_hot)
-        # w.shape == (T, B, N)
-        b = self.b_module(states).squeeze(-1)
-        # b.shape == (T, B)
+        if self.debug_recover_fixee:
+            w = 0
+            b = 0
+        else:
+            w = self.w_module(states, joint_action_n_hot)
+            # w.shape == (T, B, N)
+            b = self.b_module(states).squeeze(-1)
+            # b.shape == (T, B)
 
         joint_qvalues = (
             fixee_qvalues + jnp.einsum("TBN,NTB->TB", w, individual_advantages) + b
@@ -167,8 +184,11 @@ class AdditiveQFixLin(nn.Module):
         fixee_vvalues = individual_vvalues.sum(axis=0)
         # fixee_vvalues.shape == (T, B)
 
-        b = self.b_module(states).squeeze(-1)
-        # b.shape == (T, B)
+        if self.debug_recover_fixee:
+            b = 0
+        else:
+            b = self.b_module(states).squeeze(-1)
+            # b.shape == (T, B)
 
         joint_vvalues = fixee_vvalues + b
         # joint_qvalues.shape == (T, B)

@@ -15,9 +15,12 @@ class QFix(nn.Module):
     w_delta: float
     w_gt: float
 
+    debug_recover_fixee: bool
+
     def setup(self):
-        self.w_module = W_Module(self.hidden_size, 1, self.w_delta, self.w_gt)
-        self.b_module = B_Module(self.hidden_size)
+        if not self.debug_recover_fixee:
+            self.w_module = W_Module(self.hidden_size, 1, self.w_delta, self.w_gt)
+            self.b_module = B_Module(self.hidden_size)
 
     def __call__(
         self,
@@ -52,10 +55,15 @@ class QFix(nn.Module):
         fixee_advantages = fixee_qvalues - fixee_vvalues
         # fixee_advantages.shape == (T, B)
 
-        w = self.w_module(states, joint_action_n_hot).squeeze(-1)
-        # w.shape == (T, B)
-        b = self.b_module(states).squeeze(-1)
-        # b.shape == (T, B)
+        if self.debug_recover_fixee:
+            w = 1
+            b = fixee_vvalues
+            # b.shape == (T, B)
+        else:
+            w = self.w_module(states, joint_action_n_hot).squeeze(-1)
+            # w.shape == (T, B)
+            b = self.b_module(states).squeeze(-1)
+            # b.shape == (T, B)
 
         joint_qvalues = w * fixee_advantages + b
         # joint_qvalues.shape == (T, B)
@@ -70,8 +78,14 @@ class QFix(nn.Module):
         # individual_vvalues.shape == (N, T, B)
         # states.shape == (T, B, DS)
 
-        b = self.b_module(states).squeeze(-1)
-        # b.shape == (T, B)
+        if self.debug_recover_fixee:
+            fixee_vvalues = self.fixee(individual_vvalues, states)
+            # fixee_vvalues.shape == (T, B)
+            b = fixee_vvalues
+            # b.shape == (T, B)
+        else:
+            b = self.b_module(states).squeeze(-1)
+            # b.shape == (T, B)
 
         joint_vvalues = b
         # joint_qvalues.shape == (T, B)
@@ -91,9 +105,12 @@ class AdditiveQFix(nn.Module):
     w_gt: float
     detach_advantages: bool
 
+    debug_recover_fixee: bool
+
     def setup(self):
-        self.w_module = W_Module(self.hidden_size, 1, self.w_delta, self.w_gt)
-        self.b_module = B_Module(self.hidden_size)
+        if not self.debug_recover_fixee:
+            self.w_module = W_Module(self.hidden_size, 1, self.w_delta, self.w_gt)
+            self.b_module = B_Module(self.hidden_size)
 
     def __call__(
         self,
@@ -131,10 +148,14 @@ class AdditiveQFix(nn.Module):
         if self.detach_advantages:
             fixee_advantages = jax.lax.stop_gradient(fixee_advantages)
 
-        w = self.w_module(states, joint_action_n_hot).squeeze(-1)
-        # w.shape == (T, B)
-        b = self.b_module(states).squeeze(-1)
-        # b.shape == (T, B)
+        if self.debug_recover_fixee:
+            w = 0
+            b = 0
+        else:
+            w = self.w_module(states, joint_action_n_hot).squeeze(-1)
+            # w.shape == (T, B)
+            b = self.b_module(states).squeeze(-1)
+            # b.shape == (T, B)
 
         joint_qvalues = fixee_qvalues + w * fixee_advantages + b
         # joint_qvalues.shape == (T, B)
@@ -152,8 +173,11 @@ class AdditiveQFix(nn.Module):
         fixee_vvalues = self.fixee(individual_vvalues, states)
         # fixee_vvalues.shape == (T, B)
 
-        b = self.b_module(states).squeeze(-1)
-        # b.shape == (T, B)
+        if self.debug_recover_fixee:
+            b = 0
+        else:
+            b = self.b_module(states).squeeze(-1)
+            # b.shape == (T, B)
 
         joint_vvalues = fixee_vvalues + b
         # joint_qvalues.shape == (T, B)

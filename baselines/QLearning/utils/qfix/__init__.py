@@ -39,6 +39,7 @@ def make_fixer(config, num_agents: int, *, wrap_ff_adapter=False) -> nn.Module:
     w_delta = config_qfix.get("W_DELTA", 0.0)
     w_gt = config_qfix.get("W_GT", -1.0 if is_additive else 0.0)
     detach_advantages = config_qfix.get("DETACH_ADVANTAGES", True)
+    debug_recover_fixee =config_qfix.get("DEBUG_RECOVER_FIXEE", False)
 
     if fixer == "qfix-lin":
         return QFixLin(
@@ -46,6 +47,7 @@ def make_fixer(config, num_agents: int, *, wrap_ff_adapter=False) -> nn.Module:
             num_agents=num_agents,
             w_delta=w_delta,
             w_gt=w_gt,
+            debug_recover_fixee=debug_recover_fixee,
         )
 
     if fixer == "q+fix-lin":
@@ -55,6 +57,7 @@ def make_fixer(config, num_agents: int, *, wrap_ff_adapter=False) -> nn.Module:
             w_delta=w_delta,
             w_gt=w_gt,
             detach_advantages=detach_advantages,
+            debug_recover_fixee=debug_recover_fixee,
         )
 
     fixee = make_fixee(config)
@@ -65,6 +68,7 @@ def make_fixer(config, num_agents: int, *, wrap_ff_adapter=False) -> nn.Module:
             fixee=fixee,
             w_delta=w_delta,
             w_gt=w_gt,
+            debug_recover_fixee=debug_recover_fixee,
         )
 
     if fixer == "q+fix":
@@ -74,6 +78,7 @@ def make_fixer(config, num_agents: int, *, wrap_ff_adapter=False) -> nn.Module:
             w_delta=w_delta,
             w_gt=w_gt,
             detach_advantages=detach_advantages,
+            debug_recover_fixee=debug_recover_fixee,
         )
 
     raise ValueError(f"Invalid fixer name {fixer}")
